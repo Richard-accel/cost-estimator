@@ -46,7 +46,11 @@ export default function Signup() {
           <CardHeader className="text-center">
             <div className="flex justify-center mb-3">
               <div className="flex h-12 w-12 items-center justify-center rounded-xl gradient-primary">
-                <Activity className="h-6 w-6 text-primary-foreground" />
+                <img
+                src="/kpj_logo.webp"
+                alt="KPJ Logo"
+                className="h-full w-full object-contain"
+              />
               </div>
             </div>
             <CardTitle className="font-display text-2xl">Create Account</CardTitle>

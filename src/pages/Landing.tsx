@@ -46,7 +46,11 @@ export default function Landing() {
         <div className="max-w-6xl mx-auto px-6 py-6 flex items-center justify-between relative z-10">
           <div className="flex items-center gap-3">
             <div className="flex h-10 w-10 items-center justify-center rounded-xl gradient-primary">
-              <Activity className="h-5 w-5 text-primary-foreground" />
+              <img
+                src="/kpj_logo.webp"
+                alt="KPJ Logo"
+                className="h-full w-full object-contain"
+              />
             </div>
             <span className="text-lg font-bold font-display text-foreground">KPJ Bill Estimator</span>
           </div>

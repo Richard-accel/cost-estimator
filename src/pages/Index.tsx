@@ -32,8 +32,12 @@ const Index = () => {
       <header className="border-b border-border bg-card/80 backdrop-blur-md sticky top-0 z-40">
         <div className="max-w-4xl mx-auto px-4 sm:px-6 py-4 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="flex h-9 w-9 items-center justify-center rounded-lg gradient-primary">
-              <Activity className="h-5 w-5 text-primary-foreground" />
+            <div className="flex h-10 w-10 items-center justify-center overflow-hidden rounded-lg">
+              <img
+                src="/kpj_logo.webp"
+                alt="KPJ Logo"
+                className="h-full w-full object-contain"
+              />
             </div>
             <div>
               <h1 className="text-lg font-bold font-display text-foreground">KPJ Bill Estimator</h1>

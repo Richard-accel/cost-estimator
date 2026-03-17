@@ -61,9 +61,13 @@ export function AppSidebar() {
       <SidebarContent>
         {/* Brand */}
         <div className="flex items-center gap-3 px-4 py-4 border-b border-sidebar-border">
-          <div className="flex h-8 w-8 items-center justify-center rounded-lg gradient-primary shrink-0">
-            <Activity className="h-4 w-4 text-primary-foreground" />
-          </div>
+          <div className="flex h-10 w-10 items-center justify-center overflow-hidden rounded-lg">
+            <img
+              src="/kpj_logo.webp"
+              alt="KPJ Logo"
+              className="h-full w-full object-contain"
+            />
+            </div>
           {!collapsed && <span className="font-bold font-display text-sm text-sidebar-foreground">KPJ Bill Estimator</span>}
         </div>
 

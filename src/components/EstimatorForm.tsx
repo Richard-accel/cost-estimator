@@ -1,14 +1,11 @@
-import { useState, useMemo } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { ArrowRight, ArrowLeft, Calculator } from "lucide-react";
+import { ArrowRight, ArrowLeft, Calculator, Info } from "lucide-react";
 import { SearchableSelect } from "@/components/SearchableSelect";
 import { MultiSelect } from "@/components/MultiSelect";
 import { ProcedureRecommendations } from "@/components/ProcedureRecommendations";
 import { StepIndicator } from "@/components/StepIndicator";
-import {
-  hospitals, doctors, procedures, episodeTypes, wardTypes,
-  payorTypes, diagnosisCodes,
-} from "@/data/hospitals";
+import { supabase } from "@/integrations/supabase/client";
 
 export interface EstimatorFormData {
   hospitalId: string;
@@ -34,6 +31,8 @@ const steps = [
   { label: "Refine Estimate", description: "Optional details" },
 ];
 
+type SelectOption = { value: string; label: string; sublabel?: string };
+
 export function EstimatorForm({ onSubmit }: Props) {
   const [step, setStep] = useState(0);
   const [form, setForm] = useState<EstimatorFormData>({
@@ -42,35 +41,77 @@ export function EstimatorForm({ onSubmit }: Props) {
     wardType: "", los: "", payorType: "", payorName: "",
   });
 
+  // DB-backed reference data
+  const [hospitals, setHospitals] = useState<SelectOption[]>([]);
+  const [allDoctors, setAllDoctors] = useState<{ id: string; name: string; specialty: string | null; hospital_id: string | null }[]>([]);
+  const [allProcedures, setAllProcedures] = useState<SelectOption[]>([]);
+  const [specialtyMappings, setSpecialtyMappings] = useState<{ specialty: string; procedure_category: string }[]>([]);
+  const [episodeTypes, setEpisodeTypes] = useState<{ code: string; name: string }[]>([]);
+  const [wardTypes, setWardTypes] = useState<SelectOption[]>([]);
+  const [payorTypes, setPayorTypes] = useState<{ code: string; name: string }[]>([]);
+
+  useEffect(() => {
+    Promise.all([
+      supabase.from("hospitals").select("id, name").eq("is_active", true).order("name"),
+      supabase.from("doctors").select("id, name, specialty, hospital_id").eq("is_active", true).order("name"),
+      supabase.from("procedures").select("code, name, category").eq("is_active", true).order("code"),
+      supabase.from("episode_types").select("code, name").eq("is_active", true).order("name"),
+      supabase.from("ward_types").select("code, name").eq("is_active", true).order("name"),
+      supabase.from("payor_types").select("code, name").eq("is_active", true).order("name"),
+      supabase.from("specialty_procedure_categories").select("specialty, procedure_category"),
+    ]).then(([h, d, p, e, w, py, spc]) => {
+      setHospitals((h.data ?? []).map(x => ({ value: x.id, label: x.name })));
+      setAllDoctors(d.data ?? []);
+      setAllProcedures((p.data ?? []).map(x => ({ value: x.code, label: `${x.code} — ${x.name}`, sublabel: x.category ?? undefined })));
+      setEpisodeTypes(e.data ?? []);
+      setWardTypes((w.data ?? []).map(x => ({ value: x.code, label: x.name })));
+      setPayorTypes(py.data ?? []);
+      setSpecialtyMappings(spc.data ?? []);
+    });
+  }, []);
+
   const update = <K extends keyof EstimatorFormData>(key: K, val: EstimatorFormData[K]) =>
     setForm((prev) => ({ ...prev, [key]: val }));
 
-  const hospitalOptions = hospitals.map((h) => ({ value: h.id, label: h.name }));
-
   const doctorOptions = useMemo(
-    () => doctors
-      .filter((d) => !form.hospitalId || d.hospitalId === form.hospitalId)
-      .map((d) => ({ value: d.id, label: d.name, sublabel: d.specialty })),
-    [form.hospitalId]
+    () => allDoctors
+      .filter((d) => !form.hospitalId || d.hospital_id === form.hospitalId)
+      .map((d) => ({ value: d.id, label: d.name, sublabel: d.specialty ?? undefined })),
+    [form.hospitalId, allDoctors]
   );
 
-  const procedureOptions = procedures.map((p) => ({
-    value: p.code, label: `${p.code} — ${p.name}`, sublabel: p.category,
-  }));
-
-  const diagnosisOptions = diagnosisCodes.map((d) => ({
-    value: d.code, label: `${d.code} — ${d.description}`,
-  }));
-
-  // Auto-fill specialty when doctor selected
   const handleDoctorChange = (id: string) => {
     update("doctorId", id);
-    const doc = doctors.find((d) => d.id === id);
-    if (doc) update("doctorSpecialty", doc.specialty);
-    else update("doctorSpecialty", "");
+    const doc = allDoctors.find((d) => d.id === id);
+    update("doctorSpecialty", doc?.specialty ?? "");
+    // Clear procedures that don't match the new doctor's specialty
+    if (doc?.specialty) {
+      const allowedCategories = specialtyMappings
+        .filter(m => m.specialty === doc.specialty)
+        .map(m => m.procedure_category);
+      if (allowedCategories.length > 0) {
+        const filtered = form.procedureCodes.filter(code => {
+          const proc = allProcedures.find(p => p.value === code);
+          return !proc?.sublabel || allowedCategories.includes(proc.sublabel);
+        });
+        if (filtered.length !== form.procedureCodes.length) {
+          update("procedureCodes", filtered);
+        }
+      }
+    }
   };
 
-  const isStep1Valid = form.hospitalId && form.doctorId && form.procedureCodes.length > 0 && form.episodeType;
+  // Filter procedures based on selected doctor's specialty
+  const procedures = useMemo(() => {
+    if (!form.doctorSpecialty) return allProcedures;
+    const allowedCategories = specialtyMappings
+      .filter(m => m.specialty === form.doctorSpecialty)
+      .map(m => m.procedure_category);
+    if (allowedCategories.length === 0) return allProcedures;
+    return allProcedures.filter(p => !p.sublabel || allowedCategories.includes(p.sublabel));
+  }, [form.doctorSpecialty, allProcedures, specialtyMappings]);
+
+  const isStep1Valid = form.hospitalId && form.procedureCodes.length > 0 && form.episodeType;
 
   const handleSubmit = () => {
     if (isStep1Valid) onSubmit(form);
@@ -93,12 +134,12 @@ export function EstimatorForm({ onSubmit }: Props) {
 
               <SearchableSelect
                 label="Hospital" placeholder="Select KPJ hospital..." required
-                options={hospitalOptions} value={form.hospitalId}
+                options={hospitals} value={form.hospitalId}
                 onChange={(v) => { update("hospitalId", v); update("doctorId", ""); update("doctorSpecialty", ""); }}
               />
 
               <SearchableSelect
-                label="Doctor's Name" placeholder="Select admitting doctor..." required
+                label="Doctor's Name" placeholder="Select admitting doctor (optional)..."
                 options={doctorOptions} value={form.doctorId}
                 onChange={handleDoctorChange}
                 disabled={!form.hospitalId}
@@ -113,11 +154,19 @@ export function EstimatorForm({ onSubmit }: Props) {
                 </div>
               )}
 
-              <MultiSelect
-                label="Procedure(s)" placeholder="Add procedures..." required
-                options={procedureOptions} values={form.procedureCodes}
-                onChange={(v) => update("procedureCodes", v)}
-              />
+              <div>
+                <MultiSelect
+                  label="Procedure(s)" placeholder="Add procedures..." required
+                  options={procedures} values={form.procedureCodes}
+                  onChange={(v) => update("procedureCodes", v)}
+                />
+                {form.doctorSpecialty && procedures.length < allProcedures.length && (
+                  <p className="mt-1.5 text-xs text-muted-foreground flex items-center gap-1">
+                    <Info className="h-3 w-3" />
+                    Showing {procedures.length} procedures relevant to {form.doctorSpecialty}. Clear doctor to see all.
+                  </p>
+                )}
+              </div>
 
               {form.procedureCodes.length > 0 && (
                 <ProcedureRecommendations
@@ -131,18 +180,18 @@ export function EstimatorForm({ onSubmit }: Props) {
                 <label className="block text-sm font-medium text-foreground mb-1.5">
                   Episode Type <span className="text-destructive">*</span>
                 </label>
-                <div className="grid grid-cols-3 gap-2">
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
                   {episodeTypes.map((ep) => (
                     <button
-                      key={ep} type="button"
-                      onClick={() => update("episodeType", ep)}
+                      key={ep.code} type="button"
+                      onClick={() => update("episodeType", ep.code)}
                       className={`rounded-lg border px-3 py-2.5 text-sm font-medium transition-all ${
-                        form.episodeType === ep
+                        form.episodeType === ep.code
                           ? "border-primary bg-highlight text-highlight-foreground"
                           : "border-input bg-card text-foreground hover:border-primary/40"
                       }`}
                     >
-                      {ep}
+                      {ep.name}
                     </button>
                   ))}
                 </div>
@@ -210,16 +259,10 @@ export function EstimatorForm({ onSubmit }: Props) {
                 </div>
               </div>
 
-              <SearchableSelect
-                label="Diagnosis (ICD-10)" placeholder="Search diagnosis code..."
-                options={diagnosisOptions} value={form.diagnosisCode}
-                onChange={(v) => update("diagnosisCode", v)}
-              />
-
               <div className="grid grid-cols-2 gap-4">
                 <SearchableSelect
                   label="Ward Type" placeholder="Select ward..."
-                  options={wardTypes.map((w) => ({ value: w, label: w }))}
+                  options={wardTypes}
                   value={form.wardType}
                   onChange={(v) => update("wardType", v)}
                 />
@@ -241,7 +284,7 @@ export function EstimatorForm({ onSubmit }: Props) {
                     className="w-full rounded-lg border border-input bg-card px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-ring/30"
                   >
                     <option value="">Select payor type</option>
-                    {payorTypes.map((p) => <option key={p} value={p}>{p}</option>)}
+                    {payorTypes.map((p) => <option key={p.code} value={p.code}>{p.name}</option>)}
                   </select>
                 </div>
                 <div>

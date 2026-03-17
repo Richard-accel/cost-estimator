@@ -1,3 +1,5 @@
+import { supabase } from "@/integrations/supabase/client";
+
 export interface FeeBreakdown {
   consultantFees: number;
   surgeryFees: number;
@@ -14,6 +16,8 @@ export interface EstimationResult {
   breakdownP75: FeeBreakdown;
   doctorSpecific: boolean;
   hospitalWideNote?: string;
+  sampleSize: number;
+  dataYears: string[];
   surgicalPackage?: {
     name: string;
     price: number;
@@ -21,8 +25,106 @@ export interface EstimationResult {
   };
 }
 
-// Mock estimation engine - generates realistic-looking estimates
-export function generateEstimate(params: {
+function mapBreakdown(raw: Record<string, number> | null): FeeBreakdown {
+  if (!raw) return { consultantFees: 0, surgeryFees: 0, radiologyFees: 0, laboratoryFees: 0, pharmacyFees: 0, roomAndBoard: 0 };
+  return {
+    consultantFees: raw.consultant ?? 0,
+    surgeryFees: raw.surgery ?? 0,
+    radiologyFees: raw.radiology ?? 0,
+    laboratoryFees: raw.lab ?? 0,
+    pharmacyFees: raw.pharmacy ?? 0,
+    roomAndBoard: raw.room ?? 0,
+  };
+}
+
+function ageToGroup(age: number | undefined): string | null {
+  if (age === undefined || age === null) return null;
+  if (age <= 12) return "0-12";
+  if (age <= 17) return "13-17";
+  if (age <= 30) return "18-30";
+  if (age <= 45) return "31-45";
+  if (age <= 60) return "46-60";
+  if (age <= 75) return "61-75";
+  return "76+";
+}
+
+function genderCode(gender: string | undefined): string | null {
+  if (!gender) return null;
+  if (gender.toLowerCase().startsWith("m")) return "M";
+  if (gender.toLowerCase().startsWith("f")) return "F";
+  return null;
+}
+
+/**
+ * Query calculated_averages with progressive fallback.
+ * Starts with the most specific match and broadens until a result is found.
+ */
+async function findBestMatch(params: {
+  hospitalId: string;
+  procedureCode: string;
+  episodeType?: string;
+  doctorId?: string;
+  wardType?: string;
+  age?: number;
+  gender?: string;
+  diagnosisCode?: string;
+}) {
+  const ag = ageToGroup(params.age);
+  const g = genderCode(params.gender);
+
+  // Build query layers from most specific to least
+  const queries = [
+    // 1. Full match with doctor + demographics
+    params.doctorId ? () => supabase.from("calculated_averages").select("*")
+      .eq("hospital_id", params.hospitalId)
+      .eq("procedure_code", params.procedureCode)
+      .eq("doctor_id", params.doctorId!)
+      .eq("episode_type", params.episodeType ?? "")
+      .limit(1) : null,
+
+    // 2. Hospital-level with episode + ward
+    () => {
+      let q = supabase.from("calculated_averages").select("*")
+        .eq("hospital_id", params.hospitalId)
+        .eq("procedure_code", params.procedureCode)
+        .is("doctor_id", null);
+      if (params.episodeType) q = q.eq("episode_type", params.episodeType);
+      if (params.wardType) q = q.eq("ward_type", params.wardType);
+      return q.limit(1);
+    },
+
+    // 3. Hospital + procedure + episode only
+    () => {
+      let q = supabase.from("calculated_averages").select("*")
+        .eq("hospital_id", params.hospitalId)
+        .eq("procedure_code", params.procedureCode)
+        .is("doctor_id", null);
+      if (params.episodeType) q = q.eq("episode_type", params.episodeType);
+      return q.limit(1);
+    },
+
+    // 4. Hospital + procedure only
+    () => supabase.from("calculated_averages").select("*")
+      .eq("hospital_id", params.hospitalId)
+      .eq("procedure_code", params.procedureCode)
+      .is("doctor_id", null)
+      .limit(1),
+
+    // 5. Any hospital with this procedure (cross-hospital fallback)
+    () => supabase.from("calculated_averages").select("*")
+      .eq("procedure_code", params.procedureCode)
+      .is("doctor_id", null)
+      .limit(1),
+  ].filter(Boolean) as (() => any)[];
+
+  for (const queryFn of queries) {
+    const { data } = await queryFn();
+    if (data && data.length > 0) return data[0];
+  }
+  return null;
+}
+
+export async function generateEstimate(params: {
   hospitalId: string;
   procedureCodes: string[];
   episodeType: string;
@@ -31,91 +133,99 @@ export function generateEstimate(params: {
   gender?: string;
   wardType?: string;
   los?: number;
-}): EstimationResult {
-  // Base costs by procedure (mock)
-  const baseCosts: Record<string, number> = {
-    "PR001": 28000, "PR002": 32000, "PR003": 12000,
-    "PR004": 65000, "PR005": 25000, "PR006": 8000,
-    "PR007": 10000, "PR008": 7000, "PR009": 12000,
-    "PR010": 5000, "PR011": 18000, "PR012": 6000,
-    "PR013": 5500, "PR014": 7000, "PR015": 14000,
-    "PR016": 8000, "PR017": 22000, "PR018": 15000,
-    "PR019": 45000, "PR020": 18000, "PR021": 200,
-    "PR022": 800, "PR023": 300, "PR024": 250,
-    "PR025": 3000, "PR026": 2500, "PR027": 1500,
-    "PR028": 3500, "PR029": 30000, "PR030": 35000,
-  };
+  diagnosisCode?: string;
+}): Promise<EstimationResult> {
+  let totalP50 = 0;
+  let totalP75 = 0;
+  let totalBreakdownP50: FeeBreakdown = { consultantFees: 0, surgeryFees: 0, radiologyFees: 0, laboratoryFees: 0, pharmacyFees: 0, roomAndBoard: 0 };
+  let totalBreakdownP75: FeeBreakdown = { consultantFees: 0, surgeryFees: 0, radiologyFees: 0, laboratoryFees: 0, pharmacyFees: 0, roomAndBoard: 0 };
+  let doctorSpecific = false;
+  let totalSampleSize = 0;
+  let dataYears: string[] = [];
 
-  let totalBase = params.procedureCodes.reduce((sum, code) => sum + (baseCosts[code] || 5000), 0);
+  for (const code of params.procedureCodes) {
+    const match = await findBestMatch({
+      hospitalId: params.hospitalId,
+      procedureCode: code,
+      episodeType: params.episodeType,
+      doctorId: params.doctorId,
+      wardType: params.wardType,
+      age: params.age,
+      gender: params.gender,
+      diagnosisCode: params.diagnosisCode,
+    });
 
-  // Ward type multiplier
-  const wardMultipliers: Record<string, number> = {
-    "Suite": 1.6, "Single Room": 1.3, "Twin Sharing": 1.1,
-    "4-Bedded Ward": 1.0, "6-Bedded Ward": 0.85, "ICU": 2.0,
-  };
-  if (params.wardType) totalBase *= (wardMultipliers[params.wardType] || 1);
+    if (match) {
+      totalP50 += Number(match.p50_total ?? 0);
+      totalP75 += Number(match.p75_total ?? 0);
+      const bp50 = mapBreakdown(match.p50_breakdown as any);
+      const bp75 = mapBreakdown(match.p75_breakdown as any);
+      totalBreakdownP50 = addBreakdowns(totalBreakdownP50, bp50);
+      totalBreakdownP75 = addBreakdowns(totalBreakdownP75, bp75);
+      if (match.doctor_id) doctorSpecific = true;
+      totalSampleSize += match.sample_size ?? 0;
+      if (match.data_years) dataYears = match.data_years;
+    }
+  }
 
-  // LOS multiplier
-  if (params.los && params.los > 1) totalBase *= (1 + (params.los - 1) * 0.12);
+  // If no DB data found, return zeros with message
+  if (totalP50 === 0 && totalP75 === 0) {
+    return {
+      totalP50: 0,
+      totalP75: 0,
+      breakdownP50: totalBreakdownP50,
+      breakdownP75: totalBreakdownP75,
+      doctorSpecific: false,
+      hospitalWideNote: "No historical data available for this combination. Please contact the administrator to upload historical billing data.",
+      sampleSize: 0,
+      dataYears: [],
+    };
+  }
 
-  // Episode type
-  if (params.episodeType === "Outpatient") totalBase *= 0.4;
-  else if (params.episodeType === "Day Surgery") totalBase *= 0.65;
-
-  // Age adjustment
-  if (params.age && params.age > 65) totalBase *= 1.15;
-
-  const p50 = Math.round(totalBase);
-  const p75 = Math.round(totalBase * 1.35);
-
-  const breakdownP50 = distributeBreakdown(p50);
-  const breakdownP75 = distributeBreakdown(p75);
-
-  const doctorSpecific = !!params.doctorId;
-
-  // Check surgical package
   const pkg = checkSurgicalPackage(params.procedureCodes[0]);
 
   return {
-    totalP50: p50,
-    totalP75: p75,
-    breakdownP50,
-    breakdownP75,
+    totalP50,
+    totalP75,
+    breakdownP50: totalBreakdownP50,
+    breakdownP75: totalBreakdownP75,
     doctorSpecific,
-    hospitalWideNote: !doctorSpecific ? "Estimate based on hospital-wide data as no specific doctor was selected." : undefined,
+    hospitalWideNote: !doctorSpecific ? "Estimate based on hospital-wide data as no doctor-specific data was found." : undefined,
+    sampleSize: totalSampleSize,
+    dataYears,
     surgicalPackage: pkg,
   };
 }
 
-function distributeBreakdown(total: number): FeeBreakdown {
+function addBreakdowns(a: FeeBreakdown, b: FeeBreakdown): FeeBreakdown {
   return {
-    consultantFees: Math.round(total * 0.22),
-    surgeryFees: Math.round(total * 0.30),
-    radiologyFees: Math.round(total * 0.08),
-    laboratoryFees: Math.round(total * 0.10),
-    pharmacyFees: Math.round(total * 0.15),
-    roomAndBoard: Math.round(total * 0.15),
+    consultantFees: a.consultantFees + b.consultantFees,
+    surgeryFees: a.surgeryFees + b.surgeryFees,
+    radiologyFees: a.radiologyFees + b.radiologyFees,
+    laboratoryFees: a.laboratoryFees + b.laboratoryFees,
+    pharmacyFees: a.pharmacyFees + b.pharmacyFees,
+    roomAndBoard: a.roomAndBoard + b.roomAndBoard,
   };
 }
 
 function checkSurgicalPackage(primaryCode: string) {
   const packages: Record<string, { name: string; price: number; includes: string[] }> = {
-    "PR001": {
+    "S13-005": {
       name: "Total Knee Replacement Package",
       price: 25000,
       includes: ["Surgery & anaesthesia fees", "Implant cost", "5 nights ward stay", "Pre-op tests", "Post-op physiotherapy (3 sessions)", "Medications"],
     },
-    "PR007": {
+    "S13-013": {
       name: "Laparoscopic Cholecystectomy Package",
       price: 9500,
       includes: ["Surgery & anaesthesia fees", "2 nights single room", "Pre-op blood tests", "Medications", "Surgeon & anaesthetist fees"],
     },
-    "PR009": {
+    "S13-022": {
       name: "Caesarean Section Package",
       price: 11000,
       includes: ["Surgery & anaesthesia fees", "3 nights single room", "Baby care (normal)", "Pre-op tests", "Medications"],
     },
-    "PR012": {
+    "S13-027": {
       name: "Cataract Surgery Day Care Package",
       price: 5500,
       includes: ["Phacoemulsification", "Foldable IOL implant", "Day care charges", "Surgeon fees", "Medications (1 week)"],

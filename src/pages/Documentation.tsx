@@ -126,16 +126,16 @@ export default function Documentation() {
         <main ref={contentRef} className="flex-1 min-w-0">
           <div className="max-w-[816px] mx-auto py-8 px-6 sm:px-10 space-y-0">
             {/* Word-like document styling wrapper */}
-            <div className="bg-card border border-border rounded-sm shadow-sm print:shadow-none print:border-0" style={{ fontFamily: "'Times New Roman', 'Cambria', Georgia, serif" }}>
+            <div className="bg-card border border-border rounded-sm shadow-sm print:shadow-none print:border-0 font-sans">
               <div className="px-12 py-16 space-y-10 text-[14px] leading-[1.8] text-card-foreground">
 
                 {/* ============= COVER PAGE ============= */}
                 <section id="cover" data-section className="text-center py-20 border-b-2 border-border">
                   <div className="text-[11px] uppercase tracking-[0.3em] text-muted-foreground mb-8">KPJ Healthcare Berhad</div>
-                  <h1 className="text-[32px] font-bold leading-tight text-foreground" style={{ fontFamily: "'Cambria', Georgia, serif" }}>
+                  <h1 className="text-[32px] font-bold leading-tight text-foreground font-display">
                     Hospital Bill Estimation System
                   </h1>
-                  <h2 className="text-[18px] font-normal text-muted-foreground mt-3" style={{ fontFamily: "'Cambria', Georgia, serif" }}>
+                  <h2 className="text-[18px] font-normal text-muted-foreground mt-3 font-display">
                     System Documentation & Technical Reference
                   </h2>
                   <div className="mt-12 text-[12px] text-muted-foreground space-y-1">

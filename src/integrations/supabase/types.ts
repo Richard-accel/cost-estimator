@@ -14,16 +14,530 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      calculated_averages: {
+        Row: {
+          age_group: string | null
+          calculated_at: string
+          comorbidity: string | null
+          data_years: string[] | null
+          diagnosis_code: string | null
+          doctor_id: string | null
+          episode_type: string | null
+          gender: string | null
+          hospital_id: string
+          id: string
+          p50_breakdown: Json | null
+          p50_total: number | null
+          p75_breakdown: Json | null
+          p75_total: number | null
+          procedure_code: string
+          sample_size: number | null
+          ward_type: string | null
+        }
+        Insert: {
+          age_group?: string | null
+          calculated_at?: string
+          comorbidity?: string | null
+          data_years?: string[] | null
+          diagnosis_code?: string | null
+          doctor_id?: string | null
+          episode_type?: string | null
+          gender?: string | null
+          hospital_id: string
+          id?: string
+          p50_breakdown?: Json | null
+          p50_total?: number | null
+          p75_breakdown?: Json | null
+          p75_total?: number | null
+          procedure_code: string
+          sample_size?: number | null
+          ward_type?: string | null
+        }
+        Update: {
+          age_group?: string | null
+          calculated_at?: string
+          comorbidity?: string | null
+          data_years?: string[] | null
+          diagnosis_code?: string | null
+          doctor_id?: string | null
+          episode_type?: string | null
+          gender?: string | null
+          hospital_id?: string
+          id?: string
+          p50_breakdown?: Json | null
+          p50_total?: number | null
+          p75_breakdown?: Json | null
+          p75_total?: number | null
+          procedure_code?: string
+          sample_size?: number | null
+          ward_type?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "calculated_averages_doctor_id_fkey"
+            columns: ["doctor_id"]
+            isOneToOne: false
+            referencedRelation: "doctors"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "calculated_averages_hospital_id_fkey"
+            columns: ["hospital_id"]
+            isOneToOne: false
+            referencedRelation: "hospitals"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      doctors: {
+        Row: {
+          code: string
+          created_at: string
+          hospital_id: string | null
+          id: string
+          is_active: boolean
+          name: string
+          specialty: string | null
+          updated_at: string
+        }
+        Insert: {
+          code: string
+          created_at?: string
+          hospital_id?: string | null
+          id?: string
+          is_active?: boolean
+          name: string
+          specialty?: string | null
+          updated_at?: string
+        }
+        Update: {
+          code?: string
+          created_at?: string
+          hospital_id?: string | null
+          id?: string
+          is_active?: boolean
+          name?: string
+          specialty?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "doctors_hospital_id_fkey"
+            columns: ["hospital_id"]
+            isOneToOne: false
+            referencedRelation: "hospitals"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      episode_types: {
+        Row: {
+          code: string
+          created_at: string
+          id: string
+          is_active: boolean
+          name: string
+        }
+        Insert: {
+          code: string
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          name: string
+        }
+        Update: {
+          code?: string
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          name?: string
+        }
+        Relationships: []
+      }
+      historical_bills: {
+        Row: {
+          age: number | null
+          batch_id: string | null
+          bill_date: string | null
+          breakdown: Json | null
+          comorbidity: string | null
+          created_at: string
+          diagnosis_code: string | null
+          doctor_id: string | null
+          episode_type: string | null
+          gender: string | null
+          hospital_id: string
+          id: string
+          procedure_code: string
+          total_bill: number
+          ward_type: string | null
+          year: number
+        }
+        Insert: {
+          age?: number | null
+          batch_id?: string | null
+          bill_date?: string | null
+          breakdown?: Json | null
+          comorbidity?: string | null
+          created_at?: string
+          diagnosis_code?: string | null
+          doctor_id?: string | null
+          episode_type?: string | null
+          gender?: string | null
+          hospital_id: string
+          id?: string
+          procedure_code: string
+          total_bill: number
+          ward_type?: string | null
+          year: number
+        }
+        Update: {
+          age?: number | null
+          batch_id?: string | null
+          bill_date?: string | null
+          breakdown?: Json | null
+          comorbidity?: string | null
+          created_at?: string
+          diagnosis_code?: string | null
+          doctor_id?: string | null
+          episode_type?: string | null
+          gender?: string | null
+          hospital_id?: string
+          id?: string
+          procedure_code?: string
+          total_bill?: number
+          ward_type?: string | null
+          year?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "historical_bills_batch_id_fkey"
+            columns: ["batch_id"]
+            isOneToOne: false
+            referencedRelation: "ingestion_batches"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "historical_bills_doctor_id_fkey"
+            columns: ["doctor_id"]
+            isOneToOne: false
+            referencedRelation: "doctors"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "historical_bills_hospital_id_fkey"
+            columns: ["hospital_id"]
+            isOneToOne: false
+            referencedRelation: "hospitals"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      hospitals: {
+        Row: {
+          address: string | null
+          code: string
+          created_at: string
+          id: string
+          is_active: boolean
+          name: string
+          state: string | null
+          updated_at: string
+        }
+        Insert: {
+          address?: string | null
+          code: string
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          name: string
+          state?: string | null
+          updated_at?: string
+        }
+        Update: {
+          address?: string | null
+          code?: string
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          name?: string
+          state?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      ingestion_batches: {
+        Row: {
+          created_at: string
+          file_name: string
+          id: string
+          record_count: number | null
+          status: string
+          upload_date: string
+          uploaded_by: string | null
+          year: number
+        }
+        Insert: {
+          created_at?: string
+          file_name: string
+          id?: string
+          record_count?: number | null
+          status?: string
+          upload_date?: string
+          uploaded_by?: string | null
+          year: number
+        }
+        Update: {
+          created_at?: string
+          file_name?: string
+          id?: string
+          record_count?: number | null
+          status?: string
+          upload_date?: string
+          uploaded_by?: string | null
+          year?: number
+        }
+        Relationships: []
+      }
+      payor_types: {
+        Row: {
+          code: string
+          created_at: string
+          id: string
+          is_active: boolean
+          name: string
+        }
+        Insert: {
+          code: string
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          name: string
+        }
+        Update: {
+          code?: string
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          name?: string
+        }
+        Relationships: []
+      }
+      procedures: {
+        Row: {
+          category: string | null
+          code: string
+          created_at: string
+          id: string
+          is_active: boolean
+          name: string
+          updated_at: string
+        }
+        Insert: {
+          category?: string | null
+          code: string
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          name: string
+          updated_at?: string
+        }
+        Update: {
+          category?: string | null
+          code?: string
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          name?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      profiles: {
+        Row: {
+          created_at: string
+          doctor_id: string | null
+          email: string | null
+          full_name: string | null
+          hospital_id: string | null
+          id: string
+        }
+        Insert: {
+          created_at?: string
+          doctor_id?: string | null
+          email?: string | null
+          full_name?: string | null
+          hospital_id?: string | null
+          id: string
+        }
+        Update: {
+          created_at?: string
+          doctor_id?: string | null
+          email?: string | null
+          full_name?: string | null
+          hospital_id?: string | null
+          id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "profiles_doctor_id_fkey"
+            columns: ["doctor_id"]
+            isOneToOne: false
+            referencedRelation: "doctors"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "profiles_hospital_id_fkey"
+            columns: ["hospital_id"]
+            isOneToOne: false
+            referencedRelation: "hospitals"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      promotions: {
+        Row: {
+          badge_text: string | null
+          created_at: string
+          description: string | null
+          hospital_id: string | null
+          id: string
+          image_url: string | null
+          includes: string[] | null
+          is_active: boolean
+          original_price: number | null
+          package_price: number
+          procedure_code: string | null
+          sort_order: number
+          title: string
+          updated_at: string
+          valid_from: string | null
+          valid_until: string | null
+        }
+        Insert: {
+          badge_text?: string | null
+          created_at?: string
+          description?: string | null
+          hospital_id?: string | null
+          id?: string
+          image_url?: string | null
+          includes?: string[] | null
+          is_active?: boolean
+          original_price?: number | null
+          package_price: number
+          procedure_code?: string | null
+          sort_order?: number
+          title: string
+          updated_at?: string
+          valid_from?: string | null
+          valid_until?: string | null
+        }
+        Update: {
+          badge_text?: string | null
+          created_at?: string
+          description?: string | null
+          hospital_id?: string | null
+          id?: string
+          image_url?: string | null
+          includes?: string[] | null
+          is_active?: boolean
+          original_price?: number | null
+          package_price?: number
+          procedure_code?: string | null
+          sort_order?: number
+          title?: string
+          updated_at?: string
+          valid_from?: string | null
+          valid_until?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "promotions_hospital_id_fkey"
+            columns: ["hospital_id"]
+            isOneToOne: false
+            referencedRelation: "hospitals"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      specialty_procedure_categories: {
+        Row: {
+          created_at: string
+          id: string
+          procedure_category: string
+          specialty: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          procedure_category: string
+          specialty: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          procedure_category?: string
+          specialty?: string
+        }
+        Relationships: []
+      }
+      user_roles: {
+        Row: {
+          id: string
+          role: Database["public"]["Enums"]["app_role"]
+          user_id: string
+        }
+        Insert: {
+          id?: string
+          role: Database["public"]["Enums"]["app_role"]
+          user_id: string
+        }
+        Update: {
+          id?: string
+          role?: Database["public"]["Enums"]["app_role"]
+          user_id?: string
+        }
+        Relationships: []
+      }
+      ward_types: {
+        Row: {
+          code: string
+          created_at: string
+          id: string
+          is_active: boolean
+          name: string
+        }
+        Insert: {
+          code: string
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          name: string
+        }
+        Update: {
+          code?: string
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          name?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      has_role: {
+        Args: {
+          _role: Database["public"]["Enums"]["app_role"]
+          _user_id: string
+        }
+        Returns: boolean
+      }
     }
     Enums: {
-      [_ in never]: never
+      app_role: "group" | "hospital" | "doctor" | "admin"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -150,6 +664,8 @@ export type CompositeTypes<
 
 export const Constants = {
   public: {
-    Enums: {},
+    Enums: {
+      app_role: ["group", "hospital", "doctor", "admin"],
+    },
   },
 } as const

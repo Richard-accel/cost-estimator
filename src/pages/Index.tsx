@@ -11,8 +11,8 @@ const Index = () => {
   const [formData, setFormData] = useState<EstimatorFormData | null>(null);
   const navigate = useNavigate();
 
-  const handleSubmit = (data: EstimatorFormData) => {
-    const estimation = generateEstimate({
+  const handleSubmit = async (data: EstimatorFormData) => {
+    const estimation = await generateEstimate({
       hospitalId: data.hospitalId,
       procedureCodes: data.procedureCodes,
       episodeType: data.episodeType,
